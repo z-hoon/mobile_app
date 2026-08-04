@@ -331,7 +331,11 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     if (response.result === "SUCCESS" || response.result_text || response.spray !== undefined) {
-      if (response.spray !== undefined && response.spray > 0 && response.spray !== 90) {
+      if (action === "MENU_STOP" || response.spray === 0) {
+        setIsDiffuserOn(false);
+        setActiveMode(null);
+        setCurrentScent("0");
+      } else if (response.spray !== undefined && response.spray > 0 && response.spray !== 90) {
         setCurrentScent(String(response.spray));
         setIsDiffuserOn(true);
       }

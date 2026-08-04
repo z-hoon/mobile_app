@@ -277,14 +277,12 @@ export function ModesScreen() {
 
   const handlePowerOff = async () => {
     setLoading(true);
+    setIsOn(false);
+    setActiveMode(null);
+    setPendingMode(null);
+    setIsVoiceListening(false);
     try {
-      const result = await sendDeviceData("MENU_STOP", 0);
-      if (result.success) {
-        setIsOn(false);
-        setActiveMode(null);
-        setPendingMode(null);
-        setIsVoiceListening(false);
-      }
+      await sendDeviceData("MENU_STOP", 0);
     } catch (err) {
       console.error("Power off failed", err);
     } finally {
@@ -602,14 +600,10 @@ export function ModesScreen() {
         </div>
         <button
           onClick={() => {
-            if (isOn) {
-              handlePowerOff();
-            } else {
-              setIsOn(true);
-            }
+            handlePowerOff();
           }}
           disabled={loading}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm border ${isOn ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100" : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"} disabled:opacity-50`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm border ${isOn || activeMode !== null ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100" : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"} disabled:opacity-50`}
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Power className="w-5 h-5" />}
         </button>
