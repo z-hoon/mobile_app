@@ -207,7 +207,7 @@ export async function apiSendData(options: SendDataOptions): Promise<ApiResponse
     data.mode = "ai_replay";
   } else if (action === "noise") {
     data.mode = "ambient";
-  } else if (action === "MENU_STOP") {
+  } else if (action === "MENU_STOP" || action === "STOP_ALL") {
     data.mode = "menu";
     data.action = "STOP_ALL";
     data.spray = 0;
