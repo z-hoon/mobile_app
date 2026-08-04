@@ -51,7 +51,7 @@ export function ScentsScreen() {
         email: currentUser.email,
         action: "SET_MAPPING",
         mapping: mappingDict as any,
-        deviceId: currentUser.deviceId || "ESP32_Test"
+        deviceId: currentUser.deviceId || "SS"
       });
       setLoading(false);
     }

@@ -101,7 +101,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     lastVolumeUpdateTimeRef.current = Date.now();
 
     if (currentUser) {
-        const dId = currentUser.deviceId || "ESP32_Test";
+        const dId = currentUser.deviceId || "SS";
         apiSendData({
           email: currentUser.email,
           action: "SET_VOLUME",
@@ -118,7 +118,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentUser) {
       setIsDeviceActionLoading(true);
       try {
-        const dId = currentUser.deviceId || "ESP32_Test";
+        const dId = currentUser.deviceId || "SS";
         await apiSendData({
           email: currentUser.email,
           action: "SET_INTENSITY",
@@ -140,7 +140,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentUser) {
       setIsDeviceActionLoading(true);
       try {
-        const dId = currentUser.deviceId || "ESP32_Test";
+        const dId = currentUser.deviceId || "SS";
         await apiSendData({
           email: currentUser.email,
           action: "SET_INTENSITY",
@@ -164,7 +164,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentUser) {
       setIsDeviceActionLoading(true);
       try {
-        const dId = currentUser.deviceId || "ESP32_Test";
+        const dId = currentUser.deviceId || "SS";
         if (minutes === null) {
           await apiSendData({ email: currentUser.email, action: "MENU_STOP", value: 0, region: "STOP", deviceId: dId });
         } else {
@@ -180,7 +180,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshDeviceState = React.useCallback(async () => {
     if (!currentUser) return;
     try {
-      const dId = currentUser.deviceId || "ESP32_Test";
+      const dId = currentUser.deviceId || "SS";
       const response = await apiPollDeviceState(currentUser.email, dId) as any;
       
       if (response.last_seen) {
@@ -319,7 +319,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (action === "SET_LED") lastLedUpdateTimeRef.current = Date.now();
     if (action === "SET_VOLUME") lastVolumeUpdateTimeRef.current = Date.now();
 
-    const dId = currentUser.deviceId || "ESP32_Test";
+    const dId = currentUser.deviceId || "SS";
     const response = await apiSendData({
       email: currentUser.email,
       action,
@@ -374,7 +374,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         action: "CALIBRATE",
         value: 0,
         region: "CALIBRATE",
-        deviceId: currentUser.deviceId || "ESP32_Test"
+        deviceId: currentUser.deviceId || "SS"
       });
       return response.result === "SUCCESS";
     } catch (e) {

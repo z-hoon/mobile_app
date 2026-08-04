@@ -27,7 +27,7 @@ export function DeviceManagementScreen() {
   const { sendDeviceData } = useDevice();
   
   const [isEditingId, setIsEditingId] = useState(false);
-  const [newDeviceId, setNewDeviceId] = useState(currentUser?.deviceId || "ESP32_Test");
+  const [newDeviceId, setNewDeviceId] = useState(currentUser?.deviceId || "SS");
   const [isResetting, setIsResetting] = useState(false);
 
   // 커스텀 모달 상태

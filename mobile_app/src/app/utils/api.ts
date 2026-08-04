@@ -74,13 +74,13 @@ async function requestApi(data: any): Promise<ApiResponse> {
  * 음성 데이터 전송 API
  */
 export async function apiSendVoiceData(base64Audio: string, deviceId?: string, contentType: string = "audio/wav"): Promise<ApiResponse> {
-  console.log(`[apiSendVoiceData] Sending Voice Data... (Type: ${contentType}, Device: ${deviceId || "ESP32_Test"})`);
+  console.log(`[apiSendVoiceData] Sending Voice Data... (Type: ${contentType}, Device: ${deviceId || "SS"})`);
   try {
     const options = {
       url: LAMBDA_URL,
       headers: {
         "Content-Type": contentType,
-        "x-device-id": deviceId || "ESP32_Test",
+        "x-device-id": deviceId || "SS",
         "x-mime-type": contentType, 
       },
       data: base64Audio,
@@ -185,7 +185,7 @@ export interface SendDataOptions {
 export async function apiSendData(options: SendDataOptions): Promise<ApiResponse> {
   const { email, action, value, region, deviceId, ledData, diaryText, dataPayload, timer_enabled, timer_start, timer_end } = options;
   const sprayValue = Number(value);
-  const dId = deviceId || "ESP32_Test";
+  const dId = deviceId || "SS";
 
   const data: any = { 
     email, 
