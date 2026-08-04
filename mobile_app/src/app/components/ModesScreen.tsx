@@ -175,57 +175,61 @@ export function ModesScreen() {
 
   // 현재 분사 중인 향기 이름 및 음악 정보 가져오기 (실시간 동기화)
   const { activeScentName, activeMusicName } = React.useMemo(() => {
-    if (!isOn || !currentScent || currentScent === "0" || currentScent === "90") {
+    if (!currentScent || currentScent === "0" || currentScent === "90") {
       return { activeScentName: "", activeMusicName: "" };
     }
 
-    // 1. 향기 이름 찾기 (12와 같은 블렌딩 포함)
+    // 1. 향기 이름 찾기 (12, 23 등 블렌딩 포함)
     const scentIds = currentScent.split("").map(Number);
     const scentNames = scentIds
       .map(id => scentSlots.find(s => s.id === id)?.name)
       .filter(Boolean);
-    const finalScentName = scentNames.length > 0 ? scentNames.join(" + ") : "알 수 없는 향";
+    const finalScentName = scentNames.length > 0 ? scentNames.join(" + ") : "선택된 향";
 
-    // 2. 음악 이름 찾기 (기기에서 실시간 재생 중인 곡 동기화)
+    // 2. 음악 이름 찾기 (기기에서 실시간 재생 중인 곡 또는 매핑 곡)
     let finalMusicName = "재생 안 함";
     if (currentUser?.musicTracks) {
       const userTrackIds = currentUser.musicTracks.split("_");
-      // 무조건 번호가 앞선 향기 기준
-      const sortedIds = [...scentIds].sort((a, b) => a - b);
-      const firstScentId = sortedIds[0];
-      const trackIdx = firstScentId - 1;
       
-      if (trackIdx >= 0 && trackIdx < userTrackIds.length) {
-        const rawSlotStr = userTrackIds[trackIdx] || "0";
-        const trackNums = rawSlotStr.split(",").map(n => n.trim()).filter(Boolean);
+      // 선택된 모든 향기 슬롯의 트랙 목록 수집
+      const allSelectedTracks: { trackNum: string; slotId: number; slotName: string }[] = [];
+      scentIds.forEach(slotId => {
+        const trackIdx = slotId - 1;
+        if (trackIdx >= 0 && trackIdx < userTrackIds.length) {
+          const rawSlotStr = userTrackIds[trackIdx] || "0";
+          const nums = rawSlotStr.split(",").map(n => n.trim()).filter(Boolean);
+          const slotName = scentSlots.find(s => s.id === slotId)?.name || `${slotId}번 향`;
+          nums.forEach(n => {
+            if (n !== "0") allSelectedTracks.push({ trackNum: n, slotId, slotName });
+          });
+        }
+      });
 
-        // 1) 기기에서 실시간 재생 중인 곡(currentMusicCode) 정보가 파싱된 경우 우선 표시
-        if (currentMusicCode > 0) {
-          const currentTrack = TRACKS.find(t => t.id === `song_${currentMusicCode}`);
-          if (currentTrack) {
-            const trackIndexInPlaylist = trackNums.indexOf(String(currentMusicCode));
-            if (trackIndexInPlaylist >= 0 && trackNums.length > 1) {
-              finalMusicName = `🎵 ${currentTrack.name} (${trackIndexInPlaylist + 1}/${trackNums.length}번째 곡)`;
-            } else {
-              finalMusicName = `🎵 ${currentTrack.name}`;
-            }
+      // 1) 기기에서 실시간 재생 중인 곡(currentMusicCode) 정보가 파싱된 경우 우선 표시
+      if (currentMusicCode > 0) {
+        const currentTrack = TRACKS.find(t => t.id === `song_${currentMusicCode}`);
+        if (currentTrack) {
+          const matchedItem = allSelectedTracks.find(t => t.trackNum === String(currentMusicCode));
+          if (matchedItem) {
+            finalMusicName = `🎵 ${currentTrack.name} (${matchedItem.slotName})`;
+          } else {
+            finalMusicName = `🎵 ${currentTrack.name}`;
           }
         }
-        
-        // 2) 기기 응답 전이거나 currentMusicCode가 0인 경우, 플레이리스트 첫 번째 곡 표시
-        if (finalMusicName === "재생 안 함" && trackNums.length > 0 && trackNums[0] !== "0") {
-          const firstTrack = TRACKS.find(t => t.id === `song_${trackNums[0]}`);
-          if (firstTrack) {
-            finalMusicName = trackNums.length > 1
-              ? `🎵 ${firstTrack.name} (1/${trackNums.length}번째 곡)`
-              : `🎵 ${firstTrack.name}`;
-          }
+      }
+
+      // 2) currentMusicCode가 0이거나 미수신인 경우, 선택된 슬롯 중 첫 번째 트랙 표시
+      if (finalMusicName === "재생 안 함" && allSelectedTracks.length > 0) {
+        const first = allSelectedTracks[0];
+        const firstTrack = TRACKS.find(t => t.id === `song_${first.trackNum}`);
+        if (firstTrack) {
+          finalMusicName = `🎵 ${firstTrack.name} (${first.slotName})`;
         }
       }
     }
 
     return { activeScentName: finalScentName, activeMusicName: finalMusicName };
-  }, [isOn, currentScent, scentSlots, currentUser?.musicTracks, currentMusicCode]);
+  }, [currentScent, scentSlots, currentUser?.musicTracks, currentMusicCode]);
 
   // 화면 마운트 및 실시간 기기 음량/상태 3초 간격 빠른 동기화
   React.useEffect(() => {
@@ -716,7 +720,7 @@ export function ModesScreen() {
                           : activeMode === "noise"
                             ? "소음 분석 모드"
                             : `수동 발향 모드`
-                    : "디퓨저 꺼짐"}
+                    : (currentScent && currentScent !== "0" && currentScent !== "90") ? "디퓨저 발향 중" : "디퓨저 꺼짐"}
                 </h2>
 
                 {isOn && activeMode && activeMode === "voice" && (
@@ -833,7 +837,7 @@ export function ModesScreen() {
                           이전 향기를 깨끗하게 소거하는 쿨타임 단계입니다 (정상 작동).
                         </p>
                       </div>
-                    ) : (
+                    ) : activeScentName ? (
                       <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 bg-white/60 dark:bg-gray-900/60 backdrop-blur-md px-4 py-2.5 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
                         <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200">
                           <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
@@ -841,15 +845,19 @@ export function ModesScreen() {
                             {activeScentName} 향 분사 중
                           </span>
                         </div>
-                        <div className="hidden sm:block w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200">
-                          <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
-                          <span>
-                            {activeMusicName}
-                          </span>
-                        </div>
+                        {activeMusicName && activeMusicName !== "재생 안 함" && (
+                          <>
+                            <div className="hidden sm:block w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200">
+                              <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
+                              <span>
+                                {activeMusicName}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
 
