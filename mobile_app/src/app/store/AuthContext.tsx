@@ -16,13 +16,22 @@ interface AuthContextType {
   loginUser: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   logoutUser: () => void;
   updateUser: (email: string, data: Partial<User>, oldPassword?: string) => Promise<{ success: boolean; message: string }>;
+  updateLocalUser: (data: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const savedUser = localStorage.getItem("smart_diffuser_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      console.error("Failed to load saved user session:", e);
+      return null;
+    }
+  });
 
   const registerUser = async (email: string, pass: string, region: string, authCode: string, deviceId: string) => {
     const response = await apiSignup(email, pass, region, authCode, deviceId);
@@ -44,12 +53,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deviceId: (response as any).deviceId
       };
       setCurrentUser(user);
+      try {
+        localStorage.setItem("smart_diffuser_user", JSON.stringify(user));
+      } catch (e) {
+        console.error("Failed to save user session:", e);
+      }
       return { success: true, message: response.message || "로그인 성공" };
     }
     return { success: false, message: response.message || "로그인 실패" };
   };
 
-  const logoutUser = () => setCurrentUser(null);
+  const logoutUser = () => {
+    try {
+      localStorage.removeItem("smart_diffuser_user");
+    } catch (e) {
+      console.error("Failed to clear user session:", e);
+    }
+    setCurrentUser(null);
+  };
 
   const updateUser = async (email: string, data: Partial<User>, oldPassword?: string) => {
     // 백엔드 UPDATE_USER 액션 호출 (password, region 등)
@@ -59,15 +80,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (response.result === "SUCCESS" || (data.deviceId && !data.password && !data.region)) {
       setUsers(prev => prev.map(u => u.email === email ? { ...u, ...data } : u));
       if (currentUser?.email === email) {
-        setCurrentUser(prev => prev ? { ...prev, ...data } : null);
+        setCurrentUser(prev => {
+          const updated = prev ? { ...prev, ...data } : null;
+          if (updated) {
+            try {
+              localStorage.setItem("smart_diffuser_user", JSON.stringify(updated));
+            } catch (e) {
+              console.error("Failed to update saved user session:", e);
+            }
+          }
+          return updated;
+        });
       }
       return { success: true, message: response.message || "정보가 수정되었습니다." };
     }
     return { success: false, message: response.message || "정보 수정에 실패했습니다." };
   };
 
+  const updateLocalUser = (data: Partial<User>) => {
+    setCurrentUser(prev => {
+      if (!prev) return null;
+      if (prev.musicTracks === data.musicTracks) return prev;
+      const updated = { ...prev, ...data };
+      try {
+        localStorage.setItem("smart_diffuser_user", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to update local user session:", e);
+      }
+      return updated;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ users, currentUser, registerUser, loginUser, logoutUser, updateUser }}>
+    <AuthContext.Provider value={{ users, currentUser, registerUser, loginUser, logoutUser, updateUser, updateLocalUser }}>
       {children}
     </AuthContext.Provider>
   );

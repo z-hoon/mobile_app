@@ -44,12 +44,18 @@ interface DeviceContextType {
   dbChange: number;
   deviceStatus: string;
   currentMusicCode: number;
+  isSpike: boolean;
 }
 
 const DeviceContext = createContext<DeviceContextType | undefined>(undefined);
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateUser, updateLocalUser } = useAuth();
+  const updateUserRef = useRef(updateUser);
+
+  useEffect(() => {
+    updateUserRef.current = updateUser;
+  }, [updateUser]);
   
   const [scentSlots, setScentSlots] = useState<ScentSlot[]>([
     { id: 1, name: "시트러스", color: "bg-orange-500", remaining: 0, weightGrams: 0 },
@@ -82,6 +88,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [noiseType, setNoiseType] = useState<string>("분석 전");
   const [dbChange, setDbChange] = useState<number>(0);
   const [deviceStatus, setDeviceStatus] = useState<string>("대기 중");
+  const [isSpike, setIsSpike] = useState<boolean>(false);
   
   const lastIntensityUpdateTimeRef = useRef<number>(0);
   const lastVolumeUpdateTimeRef = useRef<number>(0);
@@ -208,11 +215,11 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }));
       }
 
-      if (response.intensity !== undefined && (Date.now() - lastIntensityUpdateTimeRef.current > 5000)) {
+      if (response.intensity !== undefined && (Date.now() - lastIntensityUpdateTimeRef.current > 1500)) {
         setIntensity(response.intensity);
       }
 
-      if (response.volume !== undefined && (Date.now() - lastVolumeUpdateTimeRef.current > 5000)) {
+      if (response.volume !== undefined && (Date.now() - lastVolumeUpdateTimeRef.current > 1500)) {
         setVolume(response.volume);
       }
 
@@ -232,8 +239,39 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setNoiseType(response.db_stddev > 8.0 ? "불규칙적(대화/활동)" : "안정적(음악/정적)");
       }
 
+      if (response.is_spike !== undefined) {
+        setIsSpike(Boolean(response.is_spike));
+      } else if (response.db_level !== undefined) {
+        setIsSpike(Math.abs(response.db_level - lastDbLevelRef.current) >= 15 || response.db_level >= 75);
+      }
+
       if (response.status !== undefined) {
         setDeviceStatus(response.status);
+      }
+
+      if (response.active_mode === "weather") {
+        setActiveMode("weather");
+        setIsDiffuserOn(true);
+      } else if (response.active_mode === "manual") {
+        setActiveMode(prevMode => {
+          if (prevMode === "voice" || prevMode === "ai" || prevMode === "noise") {
+            return prevMode;
+          }
+          setIsDiffuserOn(true);
+          return "manual";
+        });
+      } else if (response.active_mode === "ready" || response.active_mode === "off") {
+        setActiveMode(prevMode => {
+          if (prevMode === "weather" || prevMode === "manual") {
+            setIsDiffuserOn(false);
+            return null;
+          }
+          return prevMode;
+        });
+      }
+
+      if (response.active_scent !== undefined && response.active_scent > 0) {
+        setCurrentScent(String(response.active_scent));
       }
 
       if (response.led_br !== undefined && (Date.now() - lastLedUpdateTimeRef.current > 5000)) {
@@ -262,10 +300,18 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (response.music !== undefined) {
         setCurrentMusicCode(response.music);
       }
+
+      if (
+        response.music_tracks &&
+        response.music_tracks.includes("_") &&
+        response.music_tracks !== currentUser.musicTracks
+      ) {
+        updateLocalUser({ musicTracks: response.music_tracks });
+      }
     } catch (err) {
       console.error("Failed to refresh device state", err);
     }
-  }, [currentUser]);
+  }, [currentUser, updateLocalUser]);
 
   const sendDeviceData = React.useCallback(async (action: string, value: number, region?: string, diaryText?: string, ledData?: { r: number, g: number, b: number, br: number }) => {
     if (!currentUser) return { success: false, message: "로그인이 필요합니다." };
@@ -289,6 +335,19 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentScent(String(response.spray));
         setIsDiffuserOn(true);
       }
+      
+      const r = response.led_r ?? response.led_dict?.led_r;
+      const g = response.led_g ?? response.led_dict?.led_g;
+      const b = response.led_b ?? response.led_dict?.led_b;
+
+      if (r !== undefined && g !== undefined && b !== undefined) {
+        const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+        if (hex !== "#000000") {
+          setLedColor(hex);
+          setIsLedOn(true);
+        }
+      }
+
       setTimeout(() => refreshDeviceState(), 500);
       return { 
         ...response,
@@ -322,7 +381,8 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (currentUser) {
       refreshDeviceState();
-      const interval = setInterval(refreshDeviceState, 30000);
+      // 실시간 기기 디스플레이 제어 변경 사항 동기화를 위해 5초 빠른 폴링(Fast Polling) 적용
+      const interval = setInterval(refreshDeviceState, 5000);
       return () => clearInterval(interval);
     }
   }, [currentUser, refreshDeviceState]);
@@ -347,7 +407,8 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       noiseType,
       dbChange,
       deviceStatus,
-      currentMusicCode
+      currentMusicCode,
+      isSpike
     }}>
       {children}
     </DeviceContext.Provider>

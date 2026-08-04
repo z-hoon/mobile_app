@@ -26,6 +26,10 @@ import {
   Wifi,
   WifiOff,
   Loader2,
+  AlertTriangle,
+  Zap,
+  Sparkles,
+  ShieldAlert,
 } from "lucide-react";
 import { BottomNav } from "./BottomNav";
 import { motion, AnimatePresence } from "motion/react"; 
@@ -106,7 +110,8 @@ export function ModesScreen() {
     setIsDiffuserOn: setIsOn,
     activeMode,
     setActiveMode,
-    currentMusicCode
+    currentMusicCode,
+    isSpike
   } = useDevice();
 
   const regionKorean = currentUser?.region ? (REGION_MAP[currentUser.region] || currentUser.region) : "서울";
@@ -148,15 +153,25 @@ export function ModesScreen() {
   
   useEffect(() => {
     let timer: any;
+    let pollTimer: any;
     if (isOn && activeMode === "noise") {
+      // 5초마다 실시간 dbLevel 및 dbAvg 최신 상태 폴링 (기존 30초 -> 5초 딜레이로 단축)
+      refreshDeviceState();
+      pollTimer = setInterval(() => {
+        refreshDeviceState();
+      }, 5000);
+
       timer = setInterval(() => {
         setAnalysisCountdown(prev => (prev <= 1 ? 15 : prev - 1));
       }, 1000);
     } else {
       setAnalysisCountdown(15);
     }
-    return () => clearInterval(timer);
-  }, [isOn, activeMode]);
+    return () => {
+      clearInterval(timer);
+      clearInterval(pollTimer);
+    };
+  }, [isOn, activeMode, refreshDeviceState]);
 
   // 현재 분사 중인 향기 이름 및 음악 정보 가져오기 (실시간 동기화)
   const { activeScentName, activeMusicName } = React.useMemo(() => {
@@ -171,27 +186,55 @@ export function ModesScreen() {
       .filter(Boolean);
     const finalScentName = scentNames.length > 0 ? scentNames.join(" + ") : "알 수 없는 향";
 
-    // 2. 음악 이름 찾기 (무조건 앞번호(작은 숫자) 기준)
+    // 2. 음악 이름 찾기 (기기에서 실시간 재생 중인 곡 동기화)
     let finalMusicName = "재생 안 함";
     if (currentUser?.musicTracks) {
       const userTrackIds = currentUser.musicTracks.split("_");
-      // 서버나 기기에서 "31"처럼 순서가 다르게 오더라도 무조건 번호가 앞선 향기 기준
+      // 무조건 번호가 앞선 향기 기준
       const sortedIds = [...scentIds].sort((a, b) => a - b);
       const firstScentId = sortedIds[0];
       const trackIdx = firstScentId - 1;
       
       if (trackIdx >= 0 && trackIdx < userTrackIds.length) {
-        const trackNum = userTrackIds[trackIdx];
-        const trackId = trackNum === "0" ? "none" : `song_${trackNum}`;
-        const trackInfo = TRACKS.find(t => t.id === trackId);
-        if (trackInfo && trackInfo.id !== "none") {
-          finalMusicName = `${trackInfo.name} - ${trackInfo.artist}`;
+        const rawSlotStr = userTrackIds[trackIdx] || "0";
+        const trackNums = rawSlotStr.split(",").map(n => n.trim()).filter(Boolean);
+
+        // 1) 기기에서 실시간 재생 중인 곡(currentMusicCode) 정보가 파싱된 경우 우선 표시
+        if (currentMusicCode > 0) {
+          const currentTrack = TRACKS.find(t => t.id === `song_${currentMusicCode}`);
+          if (currentTrack) {
+            const trackIndexInPlaylist = trackNums.indexOf(String(currentMusicCode));
+            if (trackIndexInPlaylist >= 0 && trackNums.length > 1) {
+              finalMusicName = `🎵 ${currentTrack.name} (${trackIndexInPlaylist + 1}/${trackNums.length}번째 곡)`;
+            } else {
+              finalMusicName = `🎵 ${currentTrack.name}`;
+            }
+          }
+        }
+        
+        // 2) 기기 응답 전이거나 currentMusicCode가 0인 경우, 플레이리스트 첫 번째 곡 표시
+        if (finalMusicName === "재생 안 함" && trackNums.length > 0 && trackNums[0] !== "0") {
+          const firstTrack = TRACKS.find(t => t.id === `song_${trackNums[0]}`);
+          if (firstTrack) {
+            finalMusicName = trackNums.length > 1
+              ? `🎵 ${firstTrack.name} (1/${trackNums.length}번째 곡)`
+              : `🎵 ${firstTrack.name}`;
+          }
         }
       }
     }
 
     return { activeScentName: finalScentName, activeMusicName: finalMusicName };
-  }, [isOn, currentScent, scentSlots, currentUser?.musicTracks]);
+  }, [isOn, currentScent, scentSlots, currentUser?.musicTracks, currentMusicCode]);
+
+  // 화면 마운트 및 실시간 기기 음량/상태 3초 간격 빠른 동기화
+  React.useEffect(() => {
+    refreshDeviceState();
+    const interval = setInterval(() => {
+      refreshDeviceState();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [refreshDeviceState]);
 
   React.useEffect(() => {
     if (pendingMode === "weather") {
@@ -235,7 +278,7 @@ export function ModesScreen() {
   const handlePowerOff = async () => {
     setLoading(true);
     try {
-      const result = await sendDeviceData("MENU_STOP", 90);
+      const result = await sendDeviceData("MENU_STOP", 0);
       if (result.success) {
         setIsOn(false);
         setActiveMode(null);
@@ -386,7 +429,7 @@ export function ModesScreen() {
       if (isOn) {
         // 기존 향기 분사를 확실히 멈추기 위해 정지 명령 전송
         toast("기존 모드를 멈추고 새로운 발향을 준비 중입니다...", { icon: "⏳" });
-        await sendDeviceData("MENU_STOP", 90);
+        await sendDeviceData("MENU_STOP", 0);
         // 기기가 정지 명령을 가져가서 모터를 끌 수 있도록 3초 대기
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
@@ -453,20 +496,11 @@ export function ModesScreen() {
     
     try {
       if (type === "dislike") {
-        // 기존 향기 분사를 확실히 멈추기 위해 정지 명령 전송
-        toast("기존 향기를 멈추고 새로운 향기를 준비 중입니다...", { icon: "⏳" });
-        await sendDeviceData("MENU_STOP", 90);
-        // 기기가 정지 명령을 가져가서 모터를 끌 수 있도록 3초 대기
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-
-      console.log(`Sending feedback: ${val} for ${scentId}_${context}`);
-      const res = await sendDeviceData("FEEDBACK", val, `${scentId}_${context}`);
-      
-      if (type === "dislike" && res.success && res.spray) {
-        toast.success(`피드백이 반영되었습니다! 다른 향기(${res.spray}번)로 교체하여 분사합니다.`);
+        toast("새로운 향 교체 대기 중 (10초 잔향 소거 진행 중)", { icon: "🌬️" });
+        await sendDeviceData("DISLIKE", Number(scentId) || 1, `${scentId}_${context}`);
       } else {
-        toast.success("피드백이 반영되었습니다. 감사합니다!");
+        toast.success("현재 향기 만족도가 반영되었습니다! (+2)");
+        await sendDeviceData("LIKE", Number(scentId) || 1, `${scentId}_${context}`);
       }
     } catch (err) {
       console.error("Feedback failed", err);
@@ -525,7 +559,7 @@ export function ModesScreen() {
     {
       id: "noise",
       title: "소음 분석 모드",
-      description: `주변 소음(${dbLevel}dB)을 분석하여 맞춤형 휴식 향기 제공`,
+      description: "주변 소음을 분석하여 맞춤형 휴식 향기 제공",
       icon: <Activity className="w-6 h-6" />,
       color: "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
       activeColor: "bg-rose-500 text-white",
@@ -748,57 +782,80 @@ export function ModesScreen() {
                   <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
                     {activeMode === "noise" && (
                       <div className="flex flex-col items-center w-full mb-2">
-                        <div className="bg-white/40 dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl p-4 border border-white/20 dark:border-gray-800/20 w-full mb-3">
-                          <div className="flex justify-center items-center mb-3 relative">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">실시간 분석 지표</span>
+                        <div className="bg-white/50 dark:bg-gray-900/50 backdrop-blur-md rounded-2xl p-4 border border-white/30 dark:border-gray-800/30 w-full mb-3 shadow-xs">
+                          <div className="flex justify-between items-center mb-3 relative">
+                            <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">실시간 소음 분석 지표</span>
                             {dbChange !== 0 && (
-                              <span className={`absolute right-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${dbChange > 0 ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600"}`}>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${dbChange > 0 ? "bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-400" : "bg-blue-100 text-blue-600 dark:bg-blue-950/80 dark:text-blue-400"}`}>
                                 {dbChange > 0 ? "↑" : "↓"} {Math.abs(dbChange)}dB
                               </span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="text-xs text-gray-500 font-medium">평균 소음</span>
-                              <span className="text-2xl font-black text-gray-900 dark:text-white">{dbAvg.toFixed(1)} dB</span>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-center border-b border-gray-100 dark:border-gray-800/60 pb-3 mb-2">
+                            <div className="flex flex-col items-center border-r border-gray-100 dark:border-gray-800/60 pr-2">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">실시간 소음</span>
+                              <span className="text-2xl font-black text-rose-600 dark:text-rose-400">{dbLevel > 0 ? dbLevel : 45} <span className="text-xs font-bold text-gray-400">dB</span></span>
+                            </div>
+                            <div className="flex flex-col items-center pl-2">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">평균 소음</span>
+                              <span className="text-2xl font-black text-gray-900 dark:text-white">{dbAvg > 0 ? dbAvg.toFixed(1) : 42.0} <span className="text-xs font-bold text-gray-400">dB</span></span>
                             </div>
                           </div>
+
+                          {/* 소음 스파이크 (Fast-track) 발생 시 B2B 알림 팝업/태그 */}
+                          {(isSpike || Math.abs(dbChange) >= 15 || dbLevel >= 75 || deviceStatus.includes("Fast-track")) && (
+                            <div className="mt-2 p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center justify-center gap-2 text-amber-800 dark:text-amber-200 font-black text-xs animate-pulse">
+                              <Zap className="w-4 h-4 text-amber-500" />
+                              <span>⚡ 공간 소음 급변 감지 - Fast-track 분위기 전환 중</span>
+                            </div>
+                          )}
                         </div>
 
                         <motion.div 
-                          animate={{ opacity: [0.6, 1, 0.6] }}
+                          animate={{ opacity: [0.7, 1, 0.7] }}
                           transition={{ duration: 3, repeat: Infinity }}
-                          className="text-center px-2 mb-4"
+                          className="text-center px-2 mb-3"
                         >
                           <p className="text-[13px] font-bold text-rose-600 dark:text-rose-400 break-keep leading-relaxed">
                             {deviceStatus === "소음 분석 중..." 
-                              ? "현재 주변 소음을 정밀 분석 중입니다. 잠시만 기다려주세요." 
+                              ? "현재 매장 주변 소음을 정밀 분석 중입니다." 
                               : Math.abs(dbChange) > 5 
-                                ? `주변 소음이 ${dbChange > 0 ? '커졌습니다' : '작아졌습니다'}. 분석 후 곧 향기를 조절합니다.` 
+                                ? `주변 소음이 ${dbChange > 0 ? '커졌습니다' : '작아졌습니다'}. 분석 후 곧 향기 및 BGM을 조절합니다.` 
                                 : <>{noiseType} 환경에 맞춘 최적의 향기를 유지 중입니다.</>}
-                          </p>
-                          <p className="text-[9px] text-gray-400 mt-1 uppercase tracking-tighter">
-                            기기 상태: {deviceStatus}
                           </p>
                         </motion.div>
                       </div>
                     )}
 
-                    <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 bg-white/60 dark:bg-gray-900/60 backdrop-blur-md px-4 py-2 sm:px-5 sm:py-2.5 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
-                      <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200">
-                        <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
-                        <span>
-                          {activeScentName} 향
-                        </span>
+                    {/* 10초 잔향 소거 중 (공기 정화) UI 안내 */}
+                    {(currentScent === "90" || deviceStatus.includes("소거") || deviceStatus.includes("정지")) ? (
+                      <div className="p-3 bg-blue-500/15 border border-blue-500/30 rounded-2xl flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-black text-xs">
+                          <Wind className="w-4 h-4 text-blue-500 animate-spin" />
+                          <span>새로운 향 교체 대기 중 (10초 잔향 소거 진행 중)</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-blue-600/80 dark:text-blue-300/80 text-center">
+                          이전 향기를 깨끗하게 소거하는 쿨타임 단계입니다 (정상 작동).
+                        </p>
                       </div>
-                      <div className="hidden sm:block w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                      <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200">
-                        <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
-                        <span>
-                          {activeMusicName}
-                        </span>
+                    ) : (
+                      <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 bg-white/60 dark:bg-gray-900/60 backdrop-blur-md px-4 py-2.5 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200">
+                          <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                          <span>
+                            {activeScentName} 향 분사 중
+                          </span>
+                        </div>
+                        <div className="hidden sm:block w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200">
+                          <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
+                          <span>
+                            {activeMusicName}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -809,33 +866,91 @@ export function ModesScreen() {
                 )}
 
                 {isOn && activeMode && (activeMode === "ai" || activeMode === "noise" || activeMode === "weather" || activeMode === "voice") && (
-                  <div className="flex justify-center gap-3 mt-4 relative z-20">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFeedback("like");
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <ThumbsUp className="w-4 h-4" />
-                      <span className="text-sm font-bold whitespace-nowrap">좋아요</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFeedback("dislike");
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <ThumbsDown className="w-4 h-4" />
-                      <span className="text-sm font-bold whitespace-nowrap">별로예요</span>
-                    </button>
+                  <div className="flex flex-col gap-1.5 mt-4 relative z-20">
+                    <div className="flex justify-center gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFeedback("like");
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold"
+                      >
+                        <ThumbsUp className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm whitespace-nowrap">좋아요 👍</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFeedback("dislike");
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold"
+                      >
+                        <ThumbsDown className="w-4 h-4 text-rose-500" />
+                        <span className="text-sm whitespace-nowrap">별로예요 👎</span>
+                      </button>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 text-center block">
+                      ✨ Zero-Touch 무개입 자동화 동작 중 (묵시적 만족 유지)
+                    </span>
                   </div>
                 )}
               </div>
             </div>
           </div>
         </motion.div>
+      </div>
+      {/* 4개 카트리지 잔량 (%) 및 15% 미만 교체 경고 현황 */}
+      <div className="px-6 py-2">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-2xl p-4 transition-colors duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <Droplets className="w-4 h-4 text-blue-500" />
+              <span className="text-xs font-bold uppercase tracking-wider">4개 향 카트리지 잔량 현황</span>
+            </div>
+            {scentSlots.some(s => s.remaining < 15) && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 flex items-center gap-1 animate-pulse">
+                <AlertTriangle className="w-3 h-3 text-red-500" />
+                카트리지 교체 필요 (&lt;15%)
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {scentSlots.map((slot) => {
+              const isLow = slot.remaining < 15;
+              return (
+                <div 
+                  key={slot.id} 
+                  className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
+                    isLow 
+                      ? "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 shadow-xs" 
+                      : "bg-gray-50 dark:bg-gray-800/60 border-gray-200/60 dark:border-gray-700/60 text-gray-800 dark:text-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className={`w-2.5 h-2.5 rounded-full ${slot.color} shrink-0`} />
+                      <span className="text-[11px] font-bold truncate">{slot.name}</span>
+                    </div>
+                    <span className={`text-[11px] font-black ${isLow ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"}`}>
+                      {slot.remaining}%
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${isLow ? "bg-red-500" : "bg-blue-500"}`}
+                      style={{ width: `${slot.remaining}%` }}
+                    />
+                  </div>
+                  {isLow && (
+                    <span className="text-[9px] font-black text-red-500 dark:text-red-400 text-center tracking-tighter mt-0.5">
+                      ⚠️ 교체 필요
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="px-6 py-2 grid grid-cols-2 gap-2 sm:gap-3">

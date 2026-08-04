@@ -25,4 +25,5 @@ export const TRACKS = [
   { id: "song_23", name: "round and round", artist: "jisokury" },
   { id: "song_24", name: "lemon tree", artist: "정예원" },
   { id: "song_25", name: "그때가좋았어", artist: "oysters" },
+  { id: "song_26", name: "0026 짧은노래", artist: "테스트 음원" },
 ];

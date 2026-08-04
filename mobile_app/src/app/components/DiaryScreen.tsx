@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { BottomNav } from "./BottomNav";
-import { Home as HomeIcon, Droplets, SlidersHorizontal, Settings, BookHeart, Brain, Sparkles, Search, ChevronDown, Quote, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Home as HomeIcon, Droplets, SlidersHorizontal, Settings, BookHeart, Brain, Sparkles, Search, ChevronDown, Quote, ThumbsUp, ThumbsDown, Music, Palette, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useDiary } from "../store/DiaryContext";
 import { useAuth } from "../store/AuthContext";
 import { useDevice } from "../store/DeviceContext";
+import { TRACKS } from "../utils/tracks";
 import { toast } from "sonner";
 
 export function DiaryScreen() {
@@ -19,6 +20,9 @@ export function DiaryScreen() {
     scent: string; 
     color: string; 
     tagColor: string; 
+    hex: string;
+    colorName: string;
+    recommendedSong: string;
     spray?: number; 
     reason?: string;
     scentName?: string;
@@ -28,35 +32,55 @@ export function DiaryScreen() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [feedback, setFeedback] = useState<"like" | "dislike" | null>(null);
 
-  // 감정에 따른 시각적 테마 (색상, 그라디언트 등) 반환 함수
+  // 감정에 따른 단일 시각적 테마 & LED 색상 & 추천 음악 반환 함수 (통합 제어)
   const getEmotionTheme = (emotion: string) => {
     const e = (emotion || "편안함").toLowerCase();
     
-    // 신남/활기 계열 (Orange/Yellow)
+    // 1. 신남/행복/즐거움 계열 (Orange / Yellow LED)
     if (e.includes("신남") || e.includes("행복") || e.includes("즐거움") || e.includes("설렘") || e.includes("뿌듯") || e.includes("활기") || e.includes("기쁨")) {
       return {
-        color: "from-orange-400/90 to-yellow-300/90 dark:from-orange-600/80 dark:to-yellow-500/80 text-white shadow-orange-200/50",
-        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30"
+        hex: "#FF7E36",
+        colorName: "웜 선셋 오렌지 (#FF7E36)",
+        recommendedSong: "신나는 에너제틱 재즈 & 팝",
+        color: "from-orange-500 to-amber-400 dark:from-orange-600 dark:to-amber-500 text-white shadow-orange-200/50",
+        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30",
+        historyBadge: "bg-orange-500/15 dark:bg-orange-500/25 text-orange-700 dark:text-orange-300 border border-orange-500/30",
+        historyBorder: "border-orange-200/60 dark:border-orange-900/40"
       };
     }
-    // 화남/짜증 계열 (Blue/Slate - 차분하게 가라앉히는 컨셉)
+    // 2. 화남/짜증 계열 (Blue / Indigo LED - 진정)
     if (e.includes("화남") || e.includes("짜증") || e.includes("답답") || e.includes("분노") || e.includes("스트레스")) {
        return {
-        color: "from-blue-500/90 to-indigo-400/90 dark:from-blue-700/80 dark:to-indigo-600/80 text-white shadow-blue-200/50",
-        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30"
+        hex: "#3B82F6",
+        colorName: "쿨 캄 블루 (#3B82F6)",
+        recommendedSong: "마음을 가라앉히는 로파이 & 빗소리",
+        color: "from-blue-600 to-indigo-500 dark:from-blue-700 dark:to-indigo-600 text-white shadow-blue-200/50",
+        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30",
+        historyBadge: "bg-blue-500/15 dark:bg-blue-500/25 text-blue-700 dark:text-blue-300 border border-blue-500/30",
+        historyBorder: "border-blue-200/60 dark:border-blue-900/40"
       };
     }
-    // 슬픔/지침 계열 (Pink/Rose - 따뜻하게 감싸주는 컨셉)
+    // 3. 슬픔/우울/피곤 계열 (Pink / Rose LED - 위로)
     if (e.includes("슬픔") || e.includes("우울") || e.includes("외로움") || e.includes("지침") || e.includes("힘듦") || e.includes("피곤") || e.includes("고단")) {
       return {
-        color: "from-rose-400/90 to-pink-300/90 dark:from-rose-600/80 dark:to-pink-500/80 text-white shadow-rose-200/50",
-        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30"
+        hex: "#EC4899",
+        colorName: "워밍 로즈 핑크 (#EC4899)",
+        recommendedSong: "따뜻하게 위로하는 어쿠스틱 발라드",
+        color: "from-rose-500 to-pink-400 dark:from-rose-600 dark:to-pink-500 text-white shadow-rose-200/50",
+        tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30",
+        historyBadge: "bg-pink-500/15 dark:bg-pink-500/25 text-pink-700 dark:text-pink-300 border border-pink-500/30",
+        historyBorder: "border-pink-200/60 dark:border-pink-900/40"
       };
     }
-    // 편안함/평온/기본 계열 (Violet/Indigo)
+    // 4. 편안함/평온 계열 (Violet / Purple LED - 휴식)
     return {
-      color: "from-violet-500/90 to-purple-400/90 dark:from-violet-700/80 dark:to-purple-600/80 text-white shadow-purple-200/50",
-      tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30"
+      hex: "#8B5CF6",
+      colorName: "디프 릴랙싱 바이올렛 (#8B5CF6)",
+      recommendedSong: "평온하고 포근한 앰비언트 메디테이션",
+      color: "from-violet-600 to-purple-500 dark:from-violet-700 dark:to-purple-600 text-white shadow-purple-200/50",
+      tagColor: "bg-white/20 text-white backdrop-blur-sm border-white/30",
+      historyBadge: "bg-purple-500/15 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300 border border-purple-500/30",
+      historyBorder: "border-purple-200/60 dark:border-purple-900/40"
     };
   };
 
@@ -106,13 +130,48 @@ export function DiaryScreen() {
         const theme = getEmotionTheme(detectedEmotion);
         const actualScentName = getActualScentName(res.spray);
 
+        // AI/서버가 반환한 실제 LED RGB가 있으면 Hex 변환하여 동기화
+        const r = res.led_r ?? res.led_dict?.led_r;
+        const g = res.led_g ?? res.led_dict?.led_g;
+        const b = res.led_b ?? res.led_dict?.led_b;
+
+        let exactHex = theme.hex;
+        if (r !== undefined && g !== undefined && b !== undefined) {
+          exactHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+        }
+
+        // 음악 정보 매칭 (실제 출력되는 곡 이름과 동일하도록 TRACKS에서 파싱)
+        let actualSongTitle = "";
+        if (res.music && Number(res.music) > 0) {
+          const trackInfo = TRACKS.find(t => t.id === `song_${res.music}`);
+          if (trackInfo) actualSongTitle = `${trackInfo.name} - ${trackInfo.artist}`;
+        }
+        if (!actualSongTitle && currentUser?.musicTracks) {
+          const userTrackIds = currentUser.musicTracks.split("_");
+          const sprayId = res.spray || 1;
+          const trackIdx = sprayId - 1;
+          if (trackIdx >= 0 && trackIdx < userTrackIds.length) {
+            const rawSlotStr = userTrackIds[trackIdx] || "0";
+            const firstTrackNum = rawSlotStr.split(",")[0];
+            if (firstTrackNum && firstTrackNum !== "0") {
+              const trackInfo = TRACKS.find(t => t.id === `song_${firstTrackNum}`);
+              if (trackInfo) actualSongTitle = `${trackInfo.name} - ${trackInfo.artist}`;
+            }
+          }
+        }
+        if (!actualSongTitle) {
+          actualSongTitle = theme.recommendedSong;
+        }
+
         setResult({
           emotion: detectedEmotion,
           scent: res.emotion_summary || "당신만을 위한 추천 향기", // 요약 메시지 활용
           reason: res.result_text || res.message || `${detectedEmotion} 감정에 어울리는 특별한 향기를 준비했어요.`,
           spray: res.spray,
           scentName: actualScentName,
-          ...theme
+          ...theme,
+          hex: exactHex,
+          recommendedSong: actualSongTitle,
         });
 
         // 서버에 저장된 최신 내역을 즉시 다시 불러오기
@@ -154,7 +213,7 @@ export function DiaryScreen() {
       if (type === "dislike") {
         // 기존 향기 분사를 확실히 멈추기 위해 정지 명령 전송
         toast("기존 향기를 멈추고 새로운 향기를 준비 중입니다...", { icon: "⏳" });
-        await sendDeviceData("MENU_STOP", 90);
+        await sendDeviceData("MENU_STOP", 0);
         // 기기가 정지 명령을 가져가서 모터를 끌 수 있도록 3초 대기
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
@@ -249,17 +308,21 @@ export function DiaryScreen() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -15 }}
-              className={`bg-gradient-to-br ${result.color} rounded-[2.5rem] p-8 shadow-2xl border-none relative overflow-hidden transition-all duration-500`}
+              style={{
+                background: `linear-gradient(135deg, ${result.hex}E6 0%, ${result.hex} 100%)`,
+                boxShadow: `0 20px 40px -15px ${result.hex}80`
+              }}
+              className="rounded-[2.5rem] p-8 text-white border-none relative overflow-hidden transition-all duration-500"
             >
               {/* 장식용 배경 요소 */}
               <div className="absolute right-[-5%] top-[-10%] w-56 h-56 bg-white/20 rounded-full blur-3xl -z-10" />
-              <div className="absolute left-[-5%] bottom-[-10%] w-40 h-40 bg-black/5 rounded-full blur-2xl -z-10" />
+              <div className="absolute left-[-5%] bottom-[-10%] w-40 h-40 bg-black/10 rounded-full blur-2xl -z-10" />
               
               <div className="flex flex-col gap-8 relative z-10">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
+                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                       <span className="text-[10px] font-black uppercase tracking-[0.25em] opacity-80">AI HEART REPORT</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -286,44 +349,49 @@ export function DiaryScreen() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 향기 추천 */}
+                  <div className="flex flex-col gap-1 bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-0.5 bg-white opacity-40 rounded-full" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white opacity-70">Recommend Scent</span>
+                      <Droplets className="w-4 h-4 text-white opacity-80" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white opacity-80">Recommend Scent</span>
                     </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="flex flex-col">
-                        <span className="text-2xl font-black tracking-tight text-white drop-shadow-sm">
-                          {result.scentName || "맞춤 향기"}
-                        </span>
-                        <span className="text-[10px] font-bold text-white opacity-60 mt-0.5">
-                          {result.scent}
-                        </span>
-                      </div>
-                      <div className="w-12 h-12 rounded-full bg-white/30 flex items-center justify-center border border-white/40 shadow-inner">
-                        <Droplets className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
+                    <span className="text-lg font-black tracking-tight text-white mt-1 drop-shadow-sm">
+                      {result.scentName || "맞춤 향기"}
+                    </span>
+                    <span className="text-[10px] font-bold text-white opacity-80">
+                      {result.scent}
+                    </span>
                   </div>
 
-                  {/* 피드백 버튼 영역 */}
-                  <div className="flex justify-center gap-3 mt-4 relative z-20">
-                    <button
-                      onClick={() => handleDiaryFeedback("like")}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all ${feedback === "like" ? "bg-white text-gray-900 border-white scale-105" : "bg-white/10 hover:bg-white/20 text-white border-white/20"}`}
-                    >
-                      <ThumbsUp className={`w-4 h-4 ${feedback === "like" ? "fill-current" : ""}`} />
-                      <span className="text-sm font-bold whitespace-nowrap">좋아요</span>
-                    </button>
-                    <button
-                      onClick={() => handleDiaryFeedback("dislike")}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white/10 hover:bg-white/20 text-white border-white/20`}
-                    >
-                      <ThumbsDown className="w-4 h-4" />
-                      <span className="text-sm font-bold whitespace-nowrap">별로예요</span>
-                    </button>
+                  {/* 노래 추천 */}
+                  <div className="flex flex-col gap-1 bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20">
+                    <div className="flex items-center gap-2">
+                      <Music className="w-4 h-4 text-white opacity-80" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white opacity-80">Recommend Song</span>
+                    </div>
+                    <span className="text-sm font-black tracking-tight text-white mt-1 drop-shadow-sm">
+                      🎵 {result.recommendedSong}
+                    </span>
                   </div>
+                </div>
+
+                {/* 피드백 버튼 영역 */}
+                <div className="flex justify-center gap-3 mt-2 relative z-20">
+                  <button
+                    onClick={() => handleDiaryFeedback("like")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all ${feedback === "like" ? "bg-white text-gray-900 border-white scale-105" : "bg-white/10 hover:bg-white/20 text-white border-white/20"}`}
+                  >
+                    <ThumbsUp className={`w-4 h-4 ${feedback === "like" ? "fill-current" : ""}`} />
+                    <span className="text-sm font-bold whitespace-nowrap">좋아요</span>
+                  </button>
+                  <button
+                    onClick={() => handleDiaryFeedback("dislike")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border shadow-sm transition-all bg-white/10 hover:bg-white/20 text-white border-white/20`}
+                  >
+                    <ThumbsDown className="w-4 h-4" />
+                    <span className="text-sm font-bold whitespace-nowrap">별로예요</span>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -406,40 +474,63 @@ export function DiaryScreen() {
                   displayEmotion = "편안함";
                 }
                 
+                const itemTheme = getEmotionTheme(displayEmotion);
+                
                 return (
                   <div 
                     key={item.timestamp || item.id} 
-                    className="group bg-gray-50/50 dark:bg-gray-800/30 rounded-[2rem] p-6 border border-gray-100 dark:border-gray-800/50 hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-300"
+                    className={`group bg-gray-50/70 dark:bg-gray-800/40 rounded-[2rem] p-6 border ${itemTheme.historyBorder} hover:shadow-md transition-all duration-300`}
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em]">
                           {item.date}
                         </span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold shadow-sm ${getHistoryEmotionColor(displayEmotion)}`}>
+                        <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                          {/* 감정 태그 */}
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black shadow-sm ${itemTheme.historyBadge}`}>
                             {displayEmotion}
                           </span>
+                          
+                          {/* 추천과 100% 일치하는 LED 색상 칩 & 발광 원형 서클 */}
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-gray-900 border border-gray-200/80 dark:border-gray-700/80 shadow-2xs">
+                            <div 
+                              className="w-3 h-3 rounded-full border border-white/60 shadow-xs" 
+                              style={{ backgroundColor: itemTheme.hex, boxShadow: `0 0 8px ${itemTheme.hex}88` }}
+                            />
+                            <span className="text-[10px] font-extrabold text-gray-700 dark:text-gray-200">
+                              LED: {itemTheme.hex}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-900 flex items-center justify-center shadow-sm border border-gray-100 dark:border-gray-800 group-hover:scale-110 transition-transform duration-300">
-                        <Sparkles className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                      
+                      <div 
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xs border border-white dark:border-gray-800 transition-transform duration-300 group-hover:scale-110"
+                        style={{ backgroundColor: `${itemTheme.hex}15` }}
+                      >
+                        <Sparkles className="w-4 h-4" style={{ color: itemTheme.hex }} />
                       </div>
                     </div>
 
-                    <p className="text-gray-900 dark:text-gray-100 text-lg font-semibold leading-relaxed tracking-tight mb-4 whitespace-pre-wrap transition-colors">
+                    <p className="text-gray-900 dark:text-gray-100 text-base font-semibold leading-relaxed tracking-tight mb-4 whitespace-pre-wrap transition-colors">
                       {item.text}
                     </p>
 
-                    <div className="pt-4 border-t border-gray-100 dark:border-gray-800/50 flex items-center gap-3">
-                      <div className="flex -space-x-1">
-                        <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center">
-                          <Droplets className="w-2.5 h-2.5 text-gray-500 dark:text-gray-400" />
+                    <div className="pt-4 border-t border-gray-200/60 dark:border-gray-800/60 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center border border-orange-200 dark:border-orange-900">
+                          <Droplets className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                         </div>
+                        <span className="text-[11px] font-extrabold text-gray-700 dark:text-gray-300">
+                          {item.scent}
+                        </span>
                       </div>
-                      <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 italic">
-                        {item.scent}
-                      </span>
+
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                        <Music className="w-3.5 h-3.5 text-purple-500" />
+                        <span>{itemTheme.recommendedSong}</span>
+                      </div>
                     </div>
                   </div>
                 );

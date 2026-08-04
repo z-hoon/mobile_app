@@ -17,14 +17,24 @@ export interface ApiResponse {
   weather?: string;
   transcript?: string;
   db_level?: number;
+  db_avg?: number;
+  is_spike?: boolean;
   intensity?: number;
   timer_enabled?: boolean;
   timer_start?: number;
   timer_end?: number;
   last_seen?: string;
   emotion_tag?: string;
+  emotion_summary?: string;
   context?: string;
   mapping?: Record<string, number>;
+  active_mode?: "weather" | "manual" | "ready" | "off" | string;
+  active_scent?: number;
+  led_r?: number;
+  led_g?: number;
+  led_b?: number;
+  led_br?: number;
+  led_dict?: { led_r: number; led_g: number; led_b: number; led_bright?: number };
 }
 
 /**
@@ -200,7 +210,7 @@ export async function apiSendData(options: SendDataOptions): Promise<ApiResponse
   } else if (action === "MENU_STOP") {
     data.mode = "menu";
     data.action = "STOP_ALL";
-    data.spray = 90;
+    data.spray = 0;
   } else if (action === "SET_INTENSITY") {
     data.mode = "manual";
     data.action = "SET_INTENSITY";
@@ -248,10 +258,13 @@ export async function apiSendData(options: SendDataOptions): Promise<ApiResponse
     data.spray = sprayValue;
     data.region = region;
     data.duration = 3; 
-  } else if (action === "FEEDBACK") {
+  } else if (action === "FEEDBACK" || action === "LIKE" || action === "DISLIKE") {
+    const actType = action === "LIKE" ? "LIKE" : action === "DISLIKE" ? "DISLIKE" : (region === "like" ? "LIKE" : "DISLIKE");
     data.mode = "manual";
-    data.action = "FEEDBACK";
-    data.value = value;
+    data.event_type = "FEEDBACK";
+    data.action = actType;
+    data.value = actType === "LIKE" ? 2 : -5;
+    data.current_scent_id = sprayValue || 1;
     data.data = dataPayload || region;
     data.region = region;
   } else {

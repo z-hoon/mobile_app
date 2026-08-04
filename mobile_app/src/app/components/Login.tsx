@@ -1,15 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Wind, Loader2 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 
 export function Login() {
   const navigate = useNavigate();
-  const { loginUser } = useAuth();
+  const { currentUser, loginUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      navigate("/modes", { replace: true });
+    }
+  }, [currentUser, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
