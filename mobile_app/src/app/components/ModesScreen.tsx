@@ -433,14 +433,6 @@ export function ModesScreen() {
     }
 
     try {
-      if (isOn) {
-        // 기존 향기 분사를 확실히 멈추기 위해 정지 명령 전송
-        toast("기존 모드를 멈추고 새로운 발향을 준비 중입니다...", { icon: "⏳" });
-        await sendDeviceData("MENU_STOP", 0);
-        // 기기가 정지 명령을 가져가서 모터를 끌 수 있도록 3초 대기
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-
       const result = await sendDeviceData(action, value, region);
       if (result.success) {
         if (pendingMode) setActiveMode(pendingMode);
