@@ -42,9 +42,11 @@ export function MusicSettingsScreen() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeSlotId, setActiveSlotId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
 
-  // 멀티 기기 및 동기화 처리
+  // 멀티 기기 및 동기화 처리 (사용자가 편집 중이거나 저장 중인 경우 덮어쓰기 방지)
   useEffect(() => {
+    if (isDirty || isModalOpen || isSaving) return;
     if (!currentUser?.musicTracks || !currentUser.musicTracks.includes("_")) return;
 
     const latestTrackStrings = currentUser.musicTracks.split("_");
@@ -59,7 +61,7 @@ export function MusicSettingsScreen() {
         selectedTrackIds: selectedTrackIds.length > 0 ? selectedTrackIds : ["none"]
       };
     }));
-  }, [currentUser?.musicTracks, scentSlots]);
+  }, [currentUser?.musicTracks, scentSlots, isDirty, isModalOpen, isSaving]);
 
   const openSelectModal = (slotId: number) => {
     setActiveSlotId(slotId);
@@ -71,6 +73,7 @@ export function MusicSettingsScreen() {
   const toggleTrackForActiveSlot = (trackId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (activeSlotId === null) return;
+    setIsDirty(true);
 
     setSlots(prev => prev.map(s => {
       if (s.id !== activeSlotId) return s;
@@ -101,6 +104,7 @@ export function MusicSettingsScreen() {
   // 곡 순서 위로 이동
   const moveTrackUp = (slotId: number, index: number) => {
     if (index <= 0) return;
+    setIsDirty(true);
     setSlots(prev => prev.map(s => {
       if (s.id !== slotId) return s;
       const newList = [...s.selectedTrackIds];
@@ -113,6 +117,7 @@ export function MusicSettingsScreen() {
 
   // 곡 순서 아래로 이동
   const moveTrackDown = (slotId: number, index: number) => {
+    setIsDirty(true);
     setSlots(prev => prev.map(s => {
       if (s.id !== slotId) return s;
       if (index >= s.selectedTrackIds.length - 1) return s;
@@ -126,6 +131,7 @@ export function MusicSettingsScreen() {
 
   // 곡 삭제
   const removeTrackFromSlot = (slotId: number, trackId: string) => {
+    setIsDirty(true);
     setSlots(prev => prev.map(s => {
       if (s.id !== slotId) return s;
       const newList = s.selectedTrackIds.filter(id => id !== trackId);
@@ -151,6 +157,7 @@ export function MusicSettingsScreen() {
       if (result.success) { 
         // 🚀 서버 저장 성공 시, 앱이 기억하는 로컬 사용자 정보도 즉시 갱신!
         await updateUser(currentUser.email, { musicTracks: musicData });
+        setIsDirty(false);
         
         alert("음악 순서 및 재생 목록이 성공적으로 저장되었습니다.");
         navigate(-1); 
