@@ -208,7 +208,7 @@ export async function apiSendData(options: SendDataOptions): Promise<ApiResponse
   } else if (action === "noise") {
     data.mode = "ambient";
   } else if (action === "MENU_STOP" || action === "STOP_ALL") {
-    data.mode = "ready";
+    data.mode = "menu";
     data.action = "STOP_ALL";
     data.spray = 0;
   } else if (action === "SET_INTENSITY") {
