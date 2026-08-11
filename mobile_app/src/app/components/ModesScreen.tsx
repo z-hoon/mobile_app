@@ -211,12 +211,7 @@ export function ModesScreen() {
         if (currentTrack) {
           const trackIndexInPlaylist = allSelectedTracks.findIndex(t => t.trackNum === String(currentMusicCode));
           if (trackIndexInPlaylist >= 0) {
-            const matchedItem = allSelectedTracks[trackIndexInPlaylist];
-            if (allSelectedTracks.length > 1) {
-              finalMusicName = `🎵 ${currentTrack.name} (${trackIndexInPlaylist + 1}/${allSelectedTracks.length}번째 곡 - ${matchedItem.slotName})`;
-            } else {
-              finalMusicName = `🎵 ${currentTrack.name} (${matchedItem.slotName})`;
-            }
+            finalMusicName = `🎵 ${currentTrack.name} (${trackIndexInPlaylist + 1}/${allSelectedTracks.length}번째 곡)`;
           } else {
             finalMusicName = `🎵 ${currentTrack.name}`;
           }
@@ -228,7 +223,7 @@ export function ModesScreen() {
         const first = allSelectedTracks[0];
         const firstTrack = TRACKS.find(t => t.id === `song_${first.trackNum}`);
         if (firstTrack) {
-          finalMusicName = `🎵 ${firstTrack.name} (${first.slotName})`;
+          finalMusicName = `🎵 ${firstTrack.name} (1/${allSelectedTracks.length}번째 곡)`;
         }
       }
     }
