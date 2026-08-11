@@ -200,6 +200,7 @@ export async function apiSendData(options: SendDataOptions): Promise<ApiResponse
   if (action === "AI_WEATHER") {
     data.mode = "weather";
     data.region = region;
+    data.duration = 3;
   } else if (action === "AI_EMOTION") {
     data.mode = "emotion";
     data.user_emotion = region; 
