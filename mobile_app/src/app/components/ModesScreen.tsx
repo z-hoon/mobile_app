@@ -209,9 +209,14 @@ export function ModesScreen() {
       if (currentMusicCode > 0) {
         const currentTrack = TRACKS.find(t => t.id === `song_${currentMusicCode}`);
         if (currentTrack) {
-          const matchedItem = allSelectedTracks.find(t => t.trackNum === String(currentMusicCode));
-          if (matchedItem) {
-            finalMusicName = `🎵 ${currentTrack.name} (${matchedItem.slotName})`;
+          const trackIndexInPlaylist = allSelectedTracks.findIndex(t => t.trackNum === String(currentMusicCode));
+          if (trackIndexInPlaylist >= 0) {
+            const matchedItem = allSelectedTracks[trackIndexInPlaylist];
+            if (allSelectedTracks.length > 1) {
+              finalMusicName = `🎵 ${currentTrack.name} (${trackIndexInPlaylist + 1}/${allSelectedTracks.length}번째 곡 - ${matchedItem.slotName})`;
+            } else {
+              finalMusicName = `🎵 ${currentTrack.name} (${matchedItem.slotName})`;
+            }
           } else {
             finalMusicName = `🎵 ${currentTrack.name}`;
           }
