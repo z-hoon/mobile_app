@@ -57,12 +57,24 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateUserRef.current = updateUser;
   }, [updateUser]);
   
-  const [scentSlots, setScentSlots] = useState<ScentSlot[]>([
-    { id: 1, name: "시트러스", color: "bg-orange-500", remaining: 0, weightGrams: 0 },
-    { id: 2, name: "센달우드", color: "bg-amber-700", remaining: 0, weightGrams: 0 },
-    { id: 3, name: "패츌리", color: "bg-green-700", remaining: 0, weightGrams: 0 },
-    { id: 4, name: "페퍼민트", color: "bg-teal-500", remaining: 0, weightGrams: 0 },
-  ]);
+  const [scentSlots, setScentSlots] = useState<ScentSlot[]>(() => {
+    const DEFAULT_SLOTS: ScentSlot[] = [
+      { id: 1, name: "시트러스", color: "bg-orange-500", remaining: 0, weightGrams: 0 },
+      { id: 2, name: "센달우드", color: "bg-amber-700", remaining: 0, weightGrams: 0 },
+      { id: 3, name: "패츌리", color: "bg-green-700", remaining: 0, weightGrams: 0 },
+      { id: 4, name: "페퍼민트", color: "bg-teal-500", remaining: 0, weightGrams: 0 },
+    ];
+    try {
+      const saved = localStorage.getItem("smart_diffuser_scent_slots");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 4) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_SLOTS;
+  });
 
   const [wifiStrength, setWifiStrength] = useState<"strong" | "medium" | "weak" | "disconnected">("disconnected");
   const [volume, setVolume] = useState<number>(5);
@@ -215,6 +227,42 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }));
       }
 
+      if (response.mapping && typeof response.mapping === "object") {
+        const SCENT_KIND_MAP: Record<number, { name: string; color: string }> = {
+          1: { name: "시트러스", color: "bg-orange-500" },
+          2: { name: "센달우드", color: "bg-amber-700" },
+          3: { name: "패츌리", color: "bg-green-700" },
+          4: { name: "페퍼민트", color: "bg-teal-500" },
+          5: { name: "라벤더", color: "bg-violet-500" },
+          6: { name: "바닐라", color: "bg-orange-300" },
+          7: { name: "무향(물)", color: "bg-cyan-500" },
+        };
+
+        setScentSlots(prev => {
+          let hasChange = false;
+          const next = prev.map(slot => {
+            const rawKind = response.mapping![slot.id.toString()] ?? response.mapping![slot.id];
+            const kindCode = Number(rawKind);
+            if (kindCode && SCENT_KIND_MAP[kindCode]) {
+              const target = SCENT_KIND_MAP[kindCode];
+              if (slot.name !== target.name || slot.color !== target.color) {
+                hasChange = true;
+                return { ...slot, name: target.name, color: target.color };
+              }
+            }
+            return slot;
+          });
+
+          if (hasChange) {
+            try {
+              localStorage.setItem("smart_diffuser_scent_slots", JSON.stringify(next));
+            } catch (e) {}
+            return next;
+          }
+          return prev;
+        });
+      }
+
       if (response.intensity !== undefined && (Date.now() - lastIntensityUpdateTimeRef.current > 1500)) {
         setIntensity(response.intensity);
       }
@@ -363,7 +411,13 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentUser, refreshDeviceState]);
 
   const updateScentSlot = (id: number, slot: Partial<ScentSlot>) => {
-    setScentSlots(prev => prev.map(s => s.id === id ? { ...s, ...slot } : s));
+    setScentSlots(prev => {
+      const next = prev.map(s => s.id === id ? { ...s, ...slot } : s);
+      try {
+        localStorage.setItem("smart_diffuser_scent_slots", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
   };
 
   const calibrateWeight = async () => {
