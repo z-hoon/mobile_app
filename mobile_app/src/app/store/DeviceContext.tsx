@@ -214,17 +214,20 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       if (response.weights && Array.isArray(response.weights)) {
-        const rawWeights = response.weights_raw || [];
-        setScentSlots(prev => prev.map((slot, index) => {
-          const weightPercent = response.weights![index];
-          let estimatedGrams = (weightPercent / 100) * 75.6 + 19.8;
-          const weightGrams = rawWeights[index] !== undefined ? rawWeights[index] : estimatedGrams;
-          return { 
-            ...slot, 
-            remaining: weightPercent !== undefined ? Math.min(100, Math.max(0, Math.round(weightPercent))) : slot.remaining,
-            weightGrams: weightGrams
-          };
-        }));
+        const isAllZero = response.weights.length >= 4 && response.weights.slice(0, 4).every(w => Number(w) === 0);
+        if (!isAllZero) {
+          const rawWeights = response.weights_raw || [];
+          setScentSlots(prev => prev.map((slot, index) => {
+            const weightPercent = response.weights![index];
+            let estimatedGrams = (weightPercent / 100) * 75.6 + 19.8;
+            const weightGrams = rawWeights[index] !== undefined ? rawWeights[index] : estimatedGrams;
+            return { 
+              ...slot, 
+              remaining: weightPercent !== undefined ? Math.min(100, Math.max(0, Math.round(weightPercent))) : slot.remaining,
+              weightGrams: weightGrams
+            };
+          }));
+        }
       }
 
       if (response.mapping && typeof response.mapping === "object") {
