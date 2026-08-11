@@ -106,6 +106,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const lastVolumeUpdateTimeRef = useRef<number>(0);
   const lastLedUpdateTimeRef = useRef<number>(0);
   const lastDbLevelRef = useRef<number>(0);
+  const lastModeChangeTimeRef = useRef<number>(0);
 
   const handleVolumeChange = (newVol: number) => {
     const rounded = Math.max(0, Math.min(10, Math.round(newVol)));
@@ -300,12 +301,14 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setDeviceStatus(response.status);
       }
 
+      const isRecentlyModeChanged = (Date.now() - lastModeChangeTimeRef.current) < 15000;
+
       if (response.active_mode === "weather") {
         setActiveMode("weather");
         setIsDiffuserOn(true);
       } else if (response.active_mode === "manual") {
         setActiveMode(prevMode => {
-          if (prevMode === "voice" || prevMode === "ai" || prevMode === "noise") {
+          if (prevMode === "voice" || prevMode === "ai" || prevMode === "noise" || (prevMode === "weather" && isRecentlyModeChanged)) {
             return prevMode;
           }
           setIsDiffuserOn(true);
@@ -313,6 +316,9 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } else if (response.active_mode === "ready" || response.active_mode === "off") {
         setActiveMode(prevMode => {
+          if (isRecentlyModeChanged && (prevMode === "weather" || prevMode === "ai" || prevMode === "manual" || prevMode === "noise")) {
+            return prevMode;
+          }
           if (prevMode === "weather" || prevMode === "manual") {
             setIsDiffuserOn(false);
             return null;
@@ -382,6 +388,15 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     if (response.result === "SUCCESS" || response.result_text || response.spray !== undefined) {
+      if (action === "AI_WEATHER" || action === "AI_EMOTION" || action === "AI_REPLAY" || action === "noise" || action === "MANUAL") {
+        lastModeChangeTimeRef.current = Date.now();
+        setIsDiffuserOn(true);
+        if (action === "AI_WEATHER") setActiveMode("weather");
+        if (action === "AI_EMOTION" || action === "AI_REPLAY") setActiveMode("ai");
+        if (action === "noise") setActiveMode("noise");
+        if (action === "MANUAL") setActiveMode("manual");
+      }
+
       if (action === "MENU_STOP" || response.spray === 0) {
         setIsDiffuserOn(false);
         setActiveMode(null);
