@@ -157,7 +157,6 @@ export async function apiPollDeviceState(email: string, deviceId?: string): Prom
     action: "POLL",
     email,
     deviceId,
-    weights: [0, 0, 0, 0], // 상태 조회를 위해 빈 무게 데이터 전송
   });
 }
 
