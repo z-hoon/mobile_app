@@ -175,16 +175,18 @@ export function ModesScreen() {
 
   // 현재 분사 중인 향기 이름 및 음악 정보 가져오기 (실시간 동기화)
   const { activeScentName, activeMusicName } = React.useMemo(() => {
-    if (!currentScent || currentScent === "0" || currentScent === "90") {
+    if (!isOn) {
       return { activeScentName: "", activeMusicName: "" };
     }
 
+    const effectiveScent = (!currentScent || currentScent === "0" || currentScent === "90") ? "1" : currentScent;
+
     // 1. 향기 이름 찾기 (12, 23 등 블렌딩 포함)
-    const scentIds = currentScent.split("").map(Number);
+    const scentIds = effectiveScent.split("").map(Number);
     const scentNames = scentIds
       .map(id => scentSlots.find(s => s.id === id)?.name)
       .filter(Boolean);
-    const finalScentName = scentNames.length > 0 ? scentNames.join(" + ") : "선택된 향";
+    const finalScentName = scentNames.length > 0 ? scentNames.join(" + ") : "시트러스";
 
     // 2. 음악 이름 찾기 (기기에서 실시간 재생 중인 곡 또는 매핑 곡)
     let finalMusicName = "재생 안 함";

@@ -327,8 +327,14 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }
 
+      if (response.music !== undefined && response.music > 0) {
+        setCurrentMusicCode(Number(response.music));
+      }
+
       if (response.active_scent !== undefined && response.active_scent > 0) {
         setCurrentScent(String(response.active_scent));
+      } else if (response.spray !== undefined && response.spray > 0 && response.spray !== 90) {
+        setCurrentScent(String(response.spray));
       }
 
       if (response.led_br !== undefined && (Date.now() - lastLedUpdateTimeRef.current > 5000)) {
@@ -401,9 +407,16 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsDiffuserOn(false);
         setActiveMode(null);
         setCurrentScent("0");
+        setCurrentMusicCode(0);
       } else if (response.spray !== undefined && response.spray > 0 && response.spray !== 90) {
         setCurrentScent(String(response.spray));
         setIsDiffuserOn(true);
+      } else if (action === "AI_WEATHER") {
+        setCurrentScent("1");
+      }
+
+      if (response.music !== undefined && response.music > 0) {
+        setCurrentMusicCode(Number(response.music));
       }
       
       const r = response.led_r ?? response.led_dict?.led_r;
