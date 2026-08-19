@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+dist-ssr/
+www/
+*.local
+
+# Capacitor platform build outputs
+android/app/build/
+android/app/src/main/assets/public/
+ios/App/public/
+ios/App/build/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
